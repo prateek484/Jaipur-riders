@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Jaipur Rides - Uber & Ola Style</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script async defer src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&callback=initMap&libraries=places,directions"></script>
+  <style>
+    body {
+      font-family: 'Roboto', sans-serif;
+      background: #f8f9fa;
+      min-height: 100vh;
+      margin: 0;
+      color: #333;
+    }
+    .app-container {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+    .header {
+      background: #fff;
+      border-bottom: 1px solid #e0e0e0;
+      padding: 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    .bottom-nav {
+      background: #fff;
+      border-top: 1px solid #e0e0e0;
+      padding: 0.5rem;
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+    }
+    .nav-item {
+      text-align: center;
+      cursor: pointer;
+      padding: 0.5rem;
+      border-radius: 8px;
+      transition: background-color 0.3s;
+    }
+    .nav-item:hover, .nav-item.active {
+      background-color: #e3f2fd;
+    }
+    .page {
+      flex-grow: 1;
+      padding: 1rem;
+      display: none;
+    }
+    .page.active {
+      display: block;
+    }
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+      padding: 1.5rem;
+      margin-bottom: 1rem;
+    }
+    .btn {
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 12px 24px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: background-color 0.3s, transform 0.2s;
+    }
+    .btn:hover {
+      background: #0056b3;
+      transform: translateY(-2px);
+    }
+    .btn-success {
+      background: #28a745;
+    }
+    .btn-success:hover {
+      background: #1e7e34;
+    }
+    .btn-danger {
+      background: #dc3545;
+    }
+    .btn-danger:hover {
+      background: #bd2130;
+    }
+    .input {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      margin-bottom: 1rem;
+      font-size: 16px;
+    }
+    .otp-input {
+      width: 50px;
+      height: 50px;
+      text-align: center;
+      border: 2px solid #007bff;
+      border-radius: 8px;
+      margin: 0 5px;
+      font-size: 20px;
+      background: none;
+      outline: none;
+    }
+    .ride-option {
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      cursor: pointer;
+      transition: border-color 0.3s;
+    }
+    .ride-option:hover {
+      border-color: #007bff;
+    }
+    .map-container {
+      height: 300px;
+      border-radius: 12px;
+      margin-top: 1rem;
+      background: #e9ecef;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #6c757d;
+    }
+    .progress-container {
+      display: flex;
+      justify-content: center;
+      margin: 2rem 0;
+    }
+    .progress-step {
+      background: #007bff;
+      color: white;
+      padding: 8px 16px;
+      border-radius: 20px;
+      margin: 0 4px;
+      font-size: 12px;
+    }
+    .progress-step.stay {
+      background: #6c757d;
+    }
+    .surge-alert {
+      background: #ffc107;
+      color: #212529;
+      padding: 10px;
+      border-radius: 8px;
+      text-align: center;
+      margin-bottom: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="header">
+      <div class="flex items-center">
+        <img src="https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/b3ef7a79-9c48-4cef-bee5-e1204fc3f17a.png" alt="Jaipur Rides logo mimicking Uber/Ola style with a modern blue icon" class="mr-3" onerror="this.style.display='none';">
+        <h1 class="text-xl font-bold">Jaipur Rides</h1>
+      </div>
+      <div>
+        <span id="user-location" class="text-sm text-gray-600">Select Location</span>
+      </div>
+    </header>
+
+    <!-- Pages -->
+    <main class="flex-grow">
+      <!-- Login Page -->
+      <div id="login-page" class="page active max-w-md mx-auto">
+        <div class="card">
+          <h2 class="text-2xl font-bold mb-4 text-center">Sign In</h2>
+          <input id="mobile" type="tel" class="input" placeholder="Enter mobile number (10 digits)" maxlength="10">
+          <small class="text-gray-600 mb-4 block">We'll send an OTP for verification</small>
+          <button onclick="sendOtp()" class="btn w-full">Send OTP</button>
+        </div>
+      </div>
+
+      <!-- OTP Verification Page -->
+      <div id="otp-page" class="page max-w-md mx-auto">
+        <div class="card">
+          <h2 class="text-2xl font-bold mb-4 text-center">Verify OTP</h2>
+          <p class="mb-4">Enter the 6-digit OTP sent to <strong id="otp-mobile"></strong></p>
+          <div class="flex justify-center mb-4">
+            <input type="text" maxlength="1" class="otp-input" id="otp1" oninput="moveNext(this, 'otp2')">
+            <input type="text" maxlength="1" class="otp-input" id="otp2" oninput="moveNext(this, 'otp3')" onkeydown="moveBack(this, 'otp1')">
+            <input type="text" maxlength="1" class="otp-input" id="otp3" oninput="moveNext(this, 'otp4')" onkeydown="moveBack(this, 'otp2')">
+            <input type="text" maxlength="1" class="otp-input" id="otp4" oninput="moveNext(this, 'otp5')" onkeydown="moveBack(this, 'otp3')">
+            <input type="text" maxlength="1" class="otp-input" id="otp5" oninput="moveNext(this, 'otp6')" onkeydown="moveBack(this, 'otp4')">
+            <input type="text" maxlength="1" class="otp-input" id="otp6" onkeydown="moveBack(this, 'otp5')">
+          </div>
+          <button onclick="verifyOtp()" class="btn-success w-full">Verify & Login</button>
+          <button onclick="resendOtp()" class="mt-2 text-blue-600 hover:text-blue-800 w-full">Didn't receive? Resend OTP</button>
+          <p class="text-xs text-gray-500 mt-4">Demo OTP: 123456</p>
+        </div>
+      </div>
+
+      <!-- Home Page -->
+      <div id="home-page" class="page max-w-md mx-auto">
+        <div class="card">
+          <div class="progress-container">
+            <span class="progress-step active">Book</span>
+            <span class="progress-step">Confirm</span>
+            <span class="progress-step">Ride</span>
+            <span class="progress-step">Pay</span>
+          </div>
+          <h2 class="text-xl font-bold mb-4">Where to?</h2>
+          <div class="relative">
+            <input id="pickup" type="text" class="input" placeholder="Pickup location" onfocus="initAutocomplete()">
+            <button onclick="getCurrentLocation()" class="absolute right-2 top-2 text-blue-600">📍 Use current</button>
+          </div>
+          <input id="drop" type="text" class="input" placeholder="Drop location" onfocus="initAutocomplete()">
+          <button onclick="searchRides()" class="btn-success w-full">Book Ride</button>
+          <div class="mt-4">
+            <h3 class="font-semibold mb-2">Quick Rides:</h3>
+            <button onclick="quickRide('Airport')" class="text-blue-600 hover:text-blue-800 mr-4">🌟 Airport</button>
+            <button onclick="quickRide('Bus Stand')" class="text-blue-600 hover:text-blue-800 mr-4">🚌 Bus Stand</button>
+            <button onclick="quickRide('Railway Station')" class="text-blue-600 hover:text-blue-800">🚆 Station</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Ride Options Page -->
+      <div id="ride-options-page" class="page max-w-md mx-auto">
+        <div class="card">
+          <h2 class="text-xl font-bold mb-4">Choose a ride</h2>
+          <div class="surge-alert">🚀 Surge pricing active! Prices are 20% higher due to high demand.</div>
+          <div id="ride-options"></div>
+        </div>
+      </div>
+
+      <!-- Ride Summary Page -->
+      <div id="ride-summary-page" class="page max-w-md mx-auto">
+        <div class="card">
+          <h2 class="text-xl font-bold mb-4">Ride Summary</h2>
+          <div id="ride-details"></div>
+          <button onclick="confirmRide()" class="btn-success w-full mt-4">Confirm Ride</button>
+        </div>
+      </div>
+
+      <!-- Active Ride Page -->
+      <div id="active-ride-page" class="page max-w-md mx-auto">
+        <div class="card">
+          <h2 class="text-xl font-bold mb-4">Your Ride</h2>
+          <div id="ride-info"></div>
+          <div class="map-container" id="map">
+            <span>Live Tracking Map</span>
+          </div>
+          <div class="flex mt-4">
+            <button onclick="contactDriver()" class="btn mr-2">📞 Call Driver</button>
+            <button onclick="emergency()" class="btn-danger">🚨 Emergency</button>
+          </div>
+          <button onclick="cancelRide()" class="text-red-600 w-full mt-2">Cancel Ride</button>
+        </div>
+      </div>
+
+      <!-- Payment Page -->
+      <div id="payment-page" class="page max-w-md mx-auto">
+        <div class="card">
+          <h2 class="text-xl font-bold mb-4">Payment</h2>
+          <div id="payment-details"></div>
+          <div class="mt-4">
+            <h3 class="font-semibold mb-2">Select Payment Method:</h3>
+            <label class="block mb-2"><input type="radio" name="payment" value="cash" checked> 💵 Cash</label>
+            <label class="block mb-2"><input type="radio" name="payment" value="wallet"> 📱 Digital Wallet</label>
+            <label class="block mb-2"><input type="radio" name="payment" value="card"> 💳 Card</label>
+            <label class="block mb-2"><input type="radio" name="payment" value="upi"> 📊 UPI</label>
+          </div>
+          <button onclick="completePayment()" class="btn-success w-full mt-4">Pay Now</button>
+        </div>
+      </div>
+
+      <!-- History Page -->
+      <div id="history-page" class="page max-w-md mx-auto">
+        <div class="card">
+          <h2 class="text-xl font-bold mb-4">Ride History</h2>
+          <div id="history-list"></div>
+        </div>
+      </div>
+
+      <!-- Profile Page -->
+      <div id="profile-page" class="page max-w-md mx-auto">
+        <div class="card">
+          <h2 class="text-xl font-bold mb-4">Profile</h2>
+          <div class="mb-4">
+            <img src="https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/033c1ff5-153f-4f4f-b079-fd624305bce4.png" alt="User profile picture" class="rounded-full mb-2" onerror="this.style.display='none';">
+            <p class="font-semibold" id="user-name">John Doe</p>
+            <p class="text-gray-600" id="user-mobile">+91 9876543210</p>
+          </div>
+          <button onclick="logout()" class="btn-danger w-full">Logout</button>
+        </div>
+      </div>
+    </main>
+
+    <!-- Bottom Navigation -->
+    <nav class="bottom-nav">
+      <div id="home-nav" class="nav-item active" onclick="showPage('home-page')">
+        <span class="text-2xl">🏠</span>
+        <div class="text-xs">Home</div>
+      </div>
+      <div id="bookings-nav" class="nav-item" onclick="showPage('ride-options-page')">
+        <span class="text-2xl">🚗</span>
+        <div class="text-xs">Book</div>
+      </div>
+      <div id="history-nav" class="nav-item" onclick="showPage('history-page')">
+        <span class="text-2xl">📜</span>
+        <div class="text-xs">History</div>
+      </div>
+      <div id="profile-nav" class="nav-item" onclick="showPage('profile-page')">
+        <span class="text-2xl">👤</span>
+        <div class="text-xs">Profile</div>
+      </div>
+    </nav>
+  </div>
+
+  <script>
+    let currentUser, rides = [], currentRide = null, generatedOtp = '123456', tempMobile;
+    let pickupAutocomplete, dropAutocomplete, map;
+
+    function showPage(pageId, updateNav = true) {
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      document.getElementById(pageId).classList.add('active');
+      
+      if (updateNav) {
+        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+        const navId = pageId.replace('-page', '-nav');
+        const navElement = document.getElementById(navId);
+        if (navElement) navElement.classList.add('active');
+      }
+    }
+
+    function sendOtp() {
+      const mobile = document.getElementById('mobile').value;
+      if (mobile && mobile.length === 10) {
+        generatedOtp = (Math.floor(Math.random() * 900000) + 100000).toString();
+        tempMobile = mobile;
+        document.getElementById('otp-mobile').textContent = tempMobile;
+        alert(`OTP sent to +91 ${mobile}: ${generatedOtp}`); // Demo
+        showPage('otp-page');
+        setTimeout(() => document.getElementById('otp1').focus(), 100);
+      } else {
+        alert('Please enter a valid 10-digit mobile number');
+      }
+    }
+
+    function moveNext(current, next) {
+      if (current.value && next) document.getElementById(next).focus();
+    }
+
+    function moveBack(current, prev) {
+      if (!current.value && prev && event.key === 'Backspace') document.getElementById(prev).focus();
+    }
+
+    function verifyOtp() {
+      const otp = 
+        document.getElementById('otp1').value +
+        document.getElementById('otp2').value +
+        document.getElementById('otp3').value +
+        document.getElementById('otp4').value +
+        document.getElementById('otp5').value +
+        document.getElementById('otp6').value;
+      
+      if (otp === generatedOtp) {
+        currentUser = { mobile: tempMobile, name: 'John Doe' }; // Mock login
+        localStorage.setItem('user', JSON.stringify(currentUser));
+        document.getElementById('user-mobile').textContent = tempMobile;
+        showPage('home-page');
+      } else {
+        alert('Invalid OTP. Please try again.');
+      }
+    }
+
+    function resendOtp() {
+      sendOtp();
+    }
+
+    function getCurrentLocation() {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(pos => {
+          document.getElementById('pickup').value = 'Current Location Detected';
+        });
+      }
+    }
+
+    function initAutocomplete() {
+      // Implement Google Places Autocomplete
+      // For demo, this is placeholder
+    }
+
+    function quickRide(type) {
+      document.getElementById('drop').value = type;
+      searchRides();
+    }
+
+    function searchRides() {
+      const pickup = document.getElementById('pickup').value || 'Your Location';
+      const drop = document.getElementById('drop').value || 'Airport';
+      
+      const distance = Math.floor(Math.random() * 20 + 5);
+      const options = [
+        { type: 'Auto', capacity: '3', eta: Math.floor(Math.random() * 5 + 5), fare: 50 + distance * 8 },
+        { type: 'Bike', capacity: '1', eta: Math.floor(Math.random() * 3 + 3), fare: 30 + distance * 6 },
+        { type: 'Mini', capacity: '4', eta: Math.floor(Math.random() * 8 + 5), fare: 80 + distance * 10 },
+        { type: 'Sedan', capacity: '4', eta: Math.floor(Math.random() * 10 + 8), fare: 150 + distance * 12 },
+        { type: 'SUV', capacity: '7', eta: Math.floor(Math.random() * 12 + 10), fare: 250 + distance * 15 },
+      ];
+      
+      const optionsHtml = options.map((o, i) => `
+        <div class="ride-option" onclick="selectRide(${i}, '${o.type}', ${o.capacity}, ${o.eta}, ${o.fare}, ${distance})">
+          <div class="flex justify-between items-center">
+            <div class="flex items-center">
+              <div class="text-3xl mr-3">${o.type === 'Auto' ? '🚗' : o.type === 'Bike' ? '🏍️' : o.type === 'Mini' ? '🚙' : o.type === 'Sedan' ? '🚖' : '🚐'}</div>
+              <div>
+                <h4 class="font-semibold">${o.type}</h4>
+                <p class="text-sm text-gray-600">${o.capacity} seats • ${o.eta} min away</p>
+              </div>
+            </div>
+            <div class="text-right">
+              <span class="text-xl font-bold text-green-600">₹${o.fare}</span>
+            </div>
+          </div>
+        </div>
+      `).join('');
+      
+      document.getElementById('ride-options').innerHTML = optionsHtml;
+      showPage('ride-options-page');
+    }
+
+    function selectRide(index, type, capacity, eta, fare, distance) {
+      const pickup = document.getElementById('pickup').value;
+      const drop = document.getElementById('drop').value;
+      
+      currentRide = { pickup, drop, type, capacity, eta, fare, distance };
+      
+      document.getElementById('ride-details').innerHTML = `
+        <p><strong>From:</strong> ${pickup}</p>
+        <p><strong>To:</strong> ${drop}</p>
+        <p><strong>Vehicle:</strong> ${type}</p>
+        <p><strong>Distance:</strong> ${distance} km</p>
+        <p><strong>ETA:</strong> ${eta} min</p>
+        <p><strong>Fare:</strong> ₹${fare}</p>
+      `;
+      
+      showPage('ride-summary-page');
+    }
+
+    function confirmRide() {
+      const driver = { name: 'Rajesh Kumar', vehicle: 'Toyota Etios', number: 'RJ14 AB 1234', rating: 4.8 };
+      
+      document.getElementById('ride-info').innerHTML = `
+        <div class="flex items-center mb-4">
+          <img src="https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/0a3ae943-7f3a-454a-bc66-36495d71942c.png" alt="Driver profile" class="rounded-full mr-3" onerror="this.style.display='none';">
+          <div>
+            <h4 class="font-semibold">${driver.name}</h4>
+            <p class="text-sm">${driver.vehicle} • ${driver.number}</p>
+            <p class="text-yellow-500">⭐ ${driver.rating}</p>
+          </div>
+        </div>
+        <div class="space-y-2">
+          <div class="flex justify-between">
+            <span>Status:</span>
+            <span class="font-semibold text-green-600">On the way</span>
+          </div>
+          <div class="flex justify-between">
+            <span>ETA:</span>
+            <span>${currentRide.eta} min</span>
+          </div>
+        </div>
+      `;
+      
+      showPage('active-ride-page');
+      setTimeout(() => completeRide(), 10000); // Auto-complete after 10s for demo
+    }
+
+    function completeRide() {
+      document.getElementById('payment-details').innerHTML = `
+        <div class="space-y-2 mb-4">
+          <div class="flex justify-between">
+            <span>Base Fare:</span>
+            <span>₹${Math.floor(currentRide.fare * 0.6)}</span>
+          </div>
+          <div class="flex justify-between">
+            <span>Distance (${currentRide.distance} km):</span>
+            <span>₹${Math.floor(currentRide.fare * 0.3)}</span>
+          </div>
+          <div class="flex justify-between">
+            <span>Tax:</span>
+            <span>₹${Math.floor(currentRide.fare * 0.1)}</span>
+          </div>
+          <hr class="my-2">
+          <div class="flex justify-between font-bold">
+            <span>Total:</span>
+            <span class="text-green-600">₹${currentRide.fare}</span>
+          </div>
+        </div>
+        <div class="mb-4">
+          <label class="block mb-2">Add tip for driver:</label>
+          <div class="flex space-x-2">
+            <button class="btn px-3 py-2" onclick="addTip(10)">₹10</button>
+            <button class="btn px-3 py-2" onclick="addTip(20)">₹20</button>
+            <button class="btn px-3 py-2" onclick="addTip(30)">₹30</button>
+            <input type="number" placeholder="Custom" class="px-3 py-2 border rounded" id="custom-tip">
+          </div>
+        </div>
+      `;
+      
+      rides.push({ ...currentRide, date: new Date().toLocaleString() });
+      localStorage.setItem('rides', JSON.stringify(rides));
+      
+      showPage('payment-page');
+    }
+
+    function addTip(amount) {
+      // For demo, just log
+      console.log(`Added ₹${amount} tip`);
+    }
+
+    function completePayment() {
+      alert(`Payment of ₹${currentRide.fare} completed successfully!`);
+      currentRide = null;
+      showPage('home-page');
+    }
+
+    function contactDriver() {
+      alert('Calling driver... (Demo)');
+    }
+
+    function emergency() {
+      alert('Emergency contacted. Help is on the way!');
+    }
+
+    function cancelRide() {
+      if (confirm('Cancel ride? A fee may apply.')) {
+        currentRide = null;
+        showPage('home-page');
+      }
+    }
+
+    function initMap() {
+      // Initialize map
+      map = new google.maps.Map(document.getElementById('map'), {
+        center: { lat: 26.9124, lng: 75.7873 }, // Jaipur
+        zoom: 12
+      });
+    }
+
+    function logout() {
+      localStorage.removeItem('user');
+      currentUser = null;
+      showPage('login-page');
+    }
+
+    // Initialize
+    currentUser = JSON.parse(localStorage.getItem('user'));
+    rides = JSON.parse(localStorage.getItem('rides')) || [];
+    
+    if (currentUser) {
+      document.getElementById('user-mobile').textContent = currentUser.mobile;
+      document.getElementById('user-name').textContent = currentUser.name;
+      showPage('home-page');
+    }
+    
+    // Mock history loading
+    if (rides.length > 0) {
+      document.getElementById('history-list').innerHTML = rides.map((ride, i) => `
+        <div class="mb-3 p-3 border rounded">
+          <div class="flex justify-between">
+            <div>
+              <p class="font-semibold">${ride.type} - ${ride.distance} km</p>
+              <p class="text-sm text-gray-600">${ride.date}</p>
+            </div>
+            <span class="font-bold text-green-600">₹${ride.fare}</span>
+          </div>
+        </div>
+      `).join('');
+    } else {
+      document.getElementById('history-list').innerHTML = '<p class="text-gray-600">No rides yet</p>';
+    }
+  </script>
+</body>
+</html>
+</content>
+</create_file>
+</attempt_completion>
